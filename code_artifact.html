@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مطعم فود بركر - اطلب الآن</title>
+    
+    <!-- خطوط جوجل العربية (Cairo & Tajawal) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    
+    <!-- مكتبة Tailwind CSS للتصميم المتجاوب -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- مكتبة FontAwesome للأيقونات -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- مكتبة Leaflet للخرائط التفاعلية وتحديد الإحداثيات -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Cairo', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            red: '#D91A1A',
+                            dark: '#121212',
+                            card: '#1E1E1E',
+                            gold: '#F5B82E',
+                            goldHover: '#E0A21B'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            background-color: #121212;
+            color: #ffffff;
+            font-family: 'Cairo', sans-serif;
+            overflow-x: hidden;
+        }
+        
+        /* تخصيص شريط التمرير */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #121212;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #F5B82E;
+            border-radius: 10px;
+        }
+
+        /* إخفاء شريط التمرير للأقسام الأفقية */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+        /* تنسيق الخريطة */
+        #map {
+            height: 250px;
+            width: 100%;
+            border-radius: 0.75rem;
+            z-index: 10;
+        }
+
+        /* تأثيرات حركية ناعمة */
+        .item-card {
+            transition: transform 0.2s ease, border-color 0.2s ease;
+        }
+        .item-card:hover {
+            transform: translateY(-2px);
+            border-color: #F5B82E;
+        }
+    </style>
+</head>
+<body class="pb-28">
+
+    <!-- الرأس (Header) والشعار -->
+    <header class="sticky top-0 z-40 bg-brand-dark/95 backdrop-blur-md border-b border-gray-800 shadow-lg">
+        <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <!-- تصميم شعار مطابق للصورة المرفقة (دائرة حمراء وداخلها بركر واسم فود بركر) -->
+                <div class="w-14 h-14 rounded-full bg-brand-red border-2 border-white flex flex-col items-center justify-center shadow-md relative overflow-hidden shrink-0">
+                    <div class="w-11 h-11 rounded-full bg-black flex flex-col items-center justify-center p-1">
+                        <span class="text-[8px] font-black text-white leading-none tracking-wider">FOOD</span>
+                        <span class="text-lg leading-none my-0.5">🍔</span>
+                        <span class="text-[7px] font-black text-white leading-none tracking-wider">BURGER</span>
+                    </div>
+                </div>
+                <div>
+                    <h1 class="text-xl md:text-2xl font-black text-brand-gold tracking-wide">مطعم فود بركر</h1>
+                    <p class="text-xs text-gray-300 flex items-center gap-1">
+                        <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                        مفتوح الآن • الطعم اللي يجمعنا
+                    </p>
+                </div>
+            </div>
+
+            <!-- زر السلة العلوي -->
+            <button onclick="openCartModal()" class="relative bg-brand-card hover:bg-gray-800 border border-brand-gold/40 text-white px-4 py-2.5 rounded-xl flex items-center gap-2 transition shadow-md">
+                <i class="fa-solid fa-bag-shopping text-brand-gold text-lg"></i>
+                <span class="hidden sm:inline font-bold text-sm">سلة الطلبات</span>
+                <span id="header-badge" class="bg-brand-red text-white text-xs font-black px-2 py-0.5 rounded-full">0</span>
+            </button>
+        </div>
+
+        <!-- شريط الأقسام السريع (Categories) -->
+        <div class="bg-brand-card/80 border-t border-gray-800">
+            <div id="category-tabs" class="max-w-5xl mx-auto px-4 py-2.5 flex gap-2 overflow-x-auto no-scrollbar">
+                <!-- يتم توليد الأزرار عبر الجافاسكربت -->
+            </div>
+        </div>
+    </header>
+
+    <!-- بانر ترحيبي -->
+    <div class="max-w-5xl mx-auto px-4 mt-4">
+        <div class="bg-gradient-to-l from-brand-red via-red-800 to-brand-card rounded-2xl p-4 sm:p-6 border border-red-500/30 shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div>
+                <span class="bg-brand-gold text-black text-xs font-black px-3 py-1 rounded-full inline-block mb-2">منيو فود بركر الجديد 💜</span>
+                <h2 class="text-xl sm:text-2xl font-extrabold text-white">أطيب الأكلات .. بأفضل الأسعار 👑</h2>
+                <p class="text-xs sm:text-sm text-gray-200 mt-1">اختر وجباتك المفضلة، حدد موقعك بدقة، وأرسل طلبك مباشرة عبر الواتساب!</p>
+            </div>
+            <div class="text-4xl sm:text-5xl select-none">🍔🍟🍕</div>
+        </div>
+    </div>
+
+    <!-- حقل البحث السريع -->
+    <div class="max-w-5xl mx-auto px-4 mt-4">
+        <div class="relative">
+            <input type="text" id="search-input" onkeyup="filterMenu()" placeholder="ابحث عن وجبة (بركر، زنكر، ريزو، بيتزا، صاج، كص...)" 
+                class="w-full bg-brand-card border border-gray-700 focus:border-brand-gold rounded-xl py-3 pr-11 pl-4 text-sm text-white placeholder-gray-400 outline-none transition">
+            <i class="fa-solid fa-magnifying-glass absolute right-4 top-3.5 text-gray-400"></i>
+        </div>
+    </div>
+
+    <!-- حاوية عرض المنيو -->
+    <main id="menu-container" class="max-w-5xl mx-auto px-4 mt-6 space-y-8">
+        <!-- يتم توليد الأقسام والوجبات هنا -->
+    </main>
+
+    <!-- الشريط السفلي العائم لإتمام الطلب -->
+    <div id="floating-cart-bar" class="fixed bottom-0 inset-x-0 z-40 bg-brand-card/95 backdrop-blur-lg border-t border-brand-gold/30 p-3 shadow-2xl transform translate-y-full transition-transform duration-300">
+        <div class="max-w-5xl mx-auto flex items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <div class="bg-brand-gold text-black w-11 h-11 rounded-xl flex items-center justify-center font-black text-lg shadow" id="float-count">
+                    0
+                </div>
+                <div>
+                    <p class="text-xs text-gray-400">المجموع الكلي للطلب</p>
+                    <p class="text-lg font-black text-brand-gold" id="float-total">0 د.ع</p>
+                </div>
+            </div>
+            <button onclick="openCartModal()" class="bg-brand-gold hover:bg-brand-goldHover text-black font-black px-6 py-3 rounded-xl shadow-lg flex items-center gap-2 transition active:scale-95">
+                <span>إتمام الطلب</span>
+                <i class="fa-solid fa-arrow-left"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- نافذة السلة وتفاصيل الموقع وإرسال الطلب (Modal) -->
+    <div id="cart-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div class="bg-brand-card border border-gray-700 w-full max-w-2xl max-h-[92vh] rounded-t-3xl sm:rounded-3xl flex flex-col overflow-hidden shadow-2xl animate-fade-in">
+            
+            <!-- رأس النافذة -->
+            <div class="p-4 bg-brand-dark border-b border-gray-800 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-receipt text-brand-gold text-xl"></i>
+                    <h3 class="text-lg font-black text-white">تفاصيل الطلب ومعلومات التوصيل</h3>
+                </div>
+                <button onclick="closeCartModal()" class="w-9 h-9 rounded-full bg-gray-800 hover:bg-brand-red text-white flex items-center justify-center transition">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <!-- محتوى النافذة القابل للتمرير -->
+            <div class="p-4 sm:p-6 overflow-y-auto space-y-6 flex-1">
+                
+                <!-- 1. قائمة الوجبات المختارة -->
+                <div>
+                    <div class="flex items-center justify-between mb-3">
+                        <h4 class="font-bold text-brand-gold text-sm flex items-center gap-2">
+                            <span class="bg-brand-gold/20 text-brand-gold w-6 h-6 rounded-full inline-flex items-center justify-center text-xs">1</span>
+                            الوجبات المختارة
+                        </h4>
+                        <button onclick="clearCart()" class="text-xs text-red-400 hover:text-red-300 underline">تفريغ السلة</button>
+                    </div>
+                    <div id="cart-items-list" class="space-y-2.5 bg-brand-dark/60 p-3 rounded-2xl border border-gray-800">
+                        <!-- عناصر السلة -->
+                    </div>
+                    <div class="mt-3 flex items-center justify-between bg-brand-dark p-3.5 rounded-xl border border-brand-gold/30">
+                        <span class="font-bold text-gray-300">المبلغ الإجمالي:</span>
+                        <span id="modal-total-price" class="text-xl font-black text-brand-gold">0 د.ع</span>
+                    </div>
+                </div>
+
+                <!-- 2. معلومات الزبون -->
+                <div class="space-y-3">
+                    <h4 class="font-bold text-brand-gold text-sm flex items-center gap-2">
+                        <span class="bg-brand-gold/20 text-brand-gold w-6 h-6 rounded-full inline-flex items-center justify-center text-xs">2</span>
+                        معلومات الزبون والعنوان
+                    </h4>
+                    
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs text-gray-400 mb-1">اسم الزبون (اختياري)</label>
+                            <input type="text" id="customer-name" placeholder="مثال: علي محمد" 
+                                class="w-full bg-brand-dark border border-gray-700 focus:border-brand-gold rounded-xl p-3 text-sm text-white outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-400 mb-1">رقم الهاتف للتواصل <span class="text-brand-red">*</span></label>
+                            <input type="tel" id="customer-phone" placeholder="078XXXXXXXX" dir="ltr"
+                                class="w-full bg-brand-dark border border-gray-700 focus:border-brand-gold rounded-xl p-3 text-sm text-white text-right outline-none">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">تفاصيل العنوان وأقرب نقطة دالة <span class="text-brand-red">*</span></label>
+                        <textarea id="customer-address" rows="2" placeholder="اكتب المنطقة، الشارع، رقم الدار أو أقرب نقطة دالة..." 
+                            class="w-full bg-brand-dark border border-gray-700 focus:border-brand-gold rounded-xl p-3 text-sm text-white outline-none"></textarea>
+                    </div>
+                </div>
+
+                <!-- 3. الخريطة التفاعلية وتحديد الإحداثيات -->
+                <div class="space-y-3">
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <h4 class="font-bold text-brand-gold text-sm flex items-center gap-2">
+                            <span class="bg-brand-gold/20 text-brand-gold w-6 h-6 rounded-full inline-flex items-center justify-center text-xs">3</span>
+                            تحديد الموقع الدقيق (GPS)
+                        </h4>
+                        <button type="button" onclick="getUserGPSLocation()" id="gps-btn" class="bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-3 py-2 rounded-xl flex items-center gap-1.5 transition shadow">
+                            <i class="fa-solid fa-location-crosshairs"></i>
+                            <span>تحديد موقعي الحالي تلقائياً</span>
+                        </button>
+                    </div>
+                    
+                    <p class="text-xs text-gray-400">اضغط على زر التحديد التلقائي أو اسحب الدبوس على الخريطة لتحديد باب منزلك بدقة:</p>
+                    
+                    <!-- حاوية الخريطة -->
+                    <div class="relative rounded-xl overflow-hidden border border-gray-700">
+                        <div id="map"></div>
+                    </div>
+
+                    <!-- عرض الإحداثيات المستخرجة -->
+                    <div class="bg-brand-dark p-3 rounded-xl border border-gray-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                        <div class="flex items-center gap-2 text-gray-300">
+                            <i class="fa-solid fa-map-pin text-brand-red"></i>
+                            <span>الإحداثيات المحددة:</span>
+                            <span id="coords-display" class="font-mono text-brand-gold font-bold" dir="ltr">لم يتم التحديد بعد</span>
+                        </div>
+                        <span id="gps-status" class="text-green-400 font-semibold"></span>
+                    </div>
+                </div>
+
+                <!-- 4. ملخص الفاتورة وكود الطلب قبل الإرسال -->
+                <div class="bg-gradient-to-br from-gray-900 to-black p-4 rounded-2xl border border-brand-gold/40 space-y-2">
+                    <div class="flex items-center justify-between border-b border-gray-800 pb-2">
+                        <span class="text-xs text-gray-400">كود الطلب الخاص بك:</span>
+                        <span id="preview-order-code" class="font-mono font-black text-base bg-brand-gold/20 text-brand-gold px-3 py-0.5 rounded-lg border border-brand-gold/40">FB-0000</span>
+                    </div>
+                    <p class="text-xs text-gray-400 leading-relaxed">
+                        عند الضغط على زر الإرسال أدناه، سيتم فتح تطبيق <b>الواتساب</b> وتجهيز رسالة متكاملة بكود الطلب، الوجبات، الإحداثيات، ورقم هاتفك لإرسالها مباشرة إلى مطعم فود بركر.
+                    </p>
+                </div>
+
+            </div>
+
+            <!-- تذييل النافذة وزر الإرسال -->
+            <div class="p-4 bg-brand-dark border-t border-gray-800">
+                <button onclick="submitOrderToWhatsApp()" class="w-full bg-[#25D366] hover:bg-[#20bd5a] text-black font-black text-base py-3.5 rounded-xl shadow-lg flex items-center justify-center gap-2.5 transition active:scale-98">
+                    <i class="fa-brands fa-whatsapp text-2xl"></i>
+                    <span>إرسال الطلب الآن عبر الواتساب</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- صندوق تنبيهات مخصص (بديل alert) -->
+    <div id="toast-box" class="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 bg-brand-red text-white px-5 py-3 rounded-2xl shadow-2xl font-bold text-sm flex items-center gap-2 opacity-0 pointer-events-none transition-opacity duration-300">
+        <i class="fa-solid fa-circle-exclamation"></i>
+        <span id="toast-message">رسالة تنبيه</span>
+    </div>
+
+    <script>
+        // رقم الواتساب الخاص بالمطعم (بصيغة دولية للعراق 964)
+        const RESTAURANT_WHATSAPP = "9647813985853";
+
+        // بيانات المنيو الكاملة المستخرجة بدقة من الصورة المرفقة
+        const menuData = [
+            {
+                id: "burger",
+                name: "البركر 🍔",
+                icon: "🍔",
+                items: [
+                    { id: "b1", name: "بركر عادي", price: 1000, desc: "قطعة لحم بركر مشوية مع الخضار والصلصة الخاصة" },
+                    { id: "b2", name: "بركر جبن", price: 1500, desc: "قطعة لحم بركر مع شريحة جبن شيدر ذائبة" },
+                    { id: "b3", name: "بركر دبل", price: 3000, desc: "طبقتين من اللحم المشوي مع الجبن والصلصات" }
+                ]
+            },
+            {
+                id: "zinger",
+                name: "الزنكر 🍗",
+                icon: "🍗",
+                items: [
+                    { id: "z1", name: "زنكر عادي", price: 2000, desc: "صدر دجاج مقرمش بتتبيلة فود بركر الخاصة" },
+                    { id: "z2", name: "زنكر جبن", price: 2500, desc: "صدر دجاج مقرمش مغطى بالجبن الذائب" },
+                    { id: "z3", name: "زنكر دبل", price: 3000, desc: "قطعتين دجاج مقرمش مع الجبن والصلصة" },
+                    { id: "z4", name: "وجبة زنكر", price: 6000, desc: "وجبة متكاملة مع البطاطا المقرمشة والصلصات" }
+                ]
+            },
+            {
+                id: "rizo",
+                name: "الريزو 🍚",
+                icon: "🍚",
+                items: [
+                    { id: "r1", name: "ريزو صغير", price: 4000, desc: "أرز مبهر مع قطع الدجاج المقرمش وصلصة الريزو" },
+                    { id: "r2", name: "ريزو كبير", price: 5000, desc: "حجم عائلي مشبع من الريزو مع الدجاج والصلصة" },
+                    { id: "r3", name: "ريزو لحم صغير", price: 7000, desc: "أرز الريزو المميز مع قطع اللحم المتبلة" },
+                    { id: "r4", name: "ريزو لحم كبير", price: 8000, desc: "حجم كبير من ريزو اللحم الغني بالنكهات" },
+                    { id: "r5", name: "ريزو دجاج صغير", price: 5000, desc: "ريزو بقطع صدر الدجاج المشوي والمتبل" },
+                    { id: "r6", name: "ريزو دجاج كبير", price: 6000, desc: "حجم كبير من ريزو الدجاج المشوي" }
+                ]
+            },
+            {
+                id: "pizza",
+                name: "البيتزا 🍕",
+                icon: "🍕",
+                items: [
+                    { id: "p1", name: "بيتزا صغير دجاج", price: 5000, desc: "عجينة هشة بقطع الدجاج والجبن والموزاريلا" },
+                    { id: "p2", name: "بيتزا وسط دجاج", price: 8000, desc: "حجم وسط بخلطة الدجاج والخضار والجبن" },
+                    { id: "p3", name: "بيتزا كبير دجاج", price: 10000, desc: "حجم عائلي كبير بقطع الدجاج الغنية" },
+                    { id: "p4", name: "بيتزا صغير لحم", price: 6000, desc: "عجينة طازجة باللحم المفروم المتبل والجبن" },
+                    { id: "p5", name: "بيتزا وسط لحم", price: 9000, desc: "حجم وسط باللحم المتبل والزيتون والموزاريلا" },
+                    { id: "p6", name: "بيتزا كبير لحم", price: 11000, desc: "حجم كبير لعشاق بيتزا اللحم" }
+                ]
+            },
+            {
+                id: "saj",
+                name: "الصاج 🌯",
+                icon: "🌯",
+                items: [
+                    { id: "s1", name: "صاج دجاج صغير", price: 3000, desc: "خبز الصاج المحمص بحشوة الدجاج والثومية" },
+                    { id: "s2", name: "صاج دجاج كبير", price: 5000, desc: "صاج دجاج حجم كبير مشبع ومقرمش" },
+                    { id: "s3", name: "صاج لحم صغير", price: 3000, desc: "صاج محمص بحشوة كص اللحم والطحينية" },
+                    { id: "s4", name: "صاج لحم كبير", price: 5000, desc: "صاج لحم حجم كبير مع المخلل والصلصات" },
+                    { id: "s5", name: "صاج تويستر صغير", price: 3000, desc: "قطع كرسبي مقرمشة ملفوفة بخبز الصاج" },
+                    { id: "s6", name: "صاج تويستر كبير", price: 5000, desc: "تويستر حجم كبير مع الجبن والصلصة" },
+                    { id: "s7", name: "صاج مشكل صغير", price: 3000, desc: "مزيج شهي من اللحم والدجاج في خبز الصاج" },
+                    { id: "s8", name: "صاج مشكل كبير", price: 5000, desc: "صاج مشكل لحم ودجاج حجم كبير" },
+                    { id: "s9", name: "صاج إيطالي لحم", price: 6000, desc: "صاج لحم بخلطة الجبن والصلصة الإيطالية" },
+                    { id: "s10", name: "صاج إيطالي دجاج", price: 6000, desc: "صاج دجاج بخلطة الجبن والصلصة الإيطالية" }
+                ]
+            },
+            {
+                id: "meals",
+                name: "وجبات ومناقيش 🍗",
+                icon: "🍗",
+                items: [
+                    { id: "m1", name: "وجبة كنتاكي", price: 6000, desc: "قطع دجاج مقرمشة ذهبية مع فنكر وخبز وصلصات" },
+                    { id: "m2", name: "نص كنتاكي", price: 5000, desc: "نصف وجبة دجاج مقرمش مع البطاطا" },
+                    { id: "m3", name: "لغم بركر", price: 6000, desc: "بركر غرقان بصلصة الجبن الساخنة واللحم" },
+                    { id: "m4", name: "لغم لحم", price: 6000, desc: "سندويش لحم محشو ومغطى بصلصة الجبن الغنية" },
+                    { id: "m5", name: "لغم دجاج", price: 6000, desc: "سندويش دجاج محشو ومغطى بصلصة الجبن" },
+                    { id: "m6", name: "مناقيش جبن", price: 4000, desc: "فطيرة مخبوزة طازجة مغطاة بالجبن الذائب" }
+                ]
+            },
+            {
+                id: "kass",
+                name: "الكص 🥙",
+                icon: "🥙",
+                items: [
+                    { id: "k1", name: "سندويش لحم", price: 2000, desc: "لفة كص لحم عراقي أصيل مع الطماطم والبصل" },
+                    { id: "k2", name: "سندويش دجاج", price: 2000, desc: "لفة كص دجاج متبل مع الثومية والمخلل" },
+                    { id: "k3", name: "نفر لحم", price: 14000, desc: "طبق كص لحم كامل مع المقبلات والخبز" },
+                    { id: "k4", name: "نفر دجاج", price: 14000, desc: "طبق كص دجاج كامل مع المقبلات والخبز" },
+                    { id: "k5", name: "نص نفر لحم", price: 7000, desc: "نصف طبق كص لحم مع الخبز والصلصات" },
+                    { id: "k6", name: "نص نفر دجاج", price: 7000, desc: "نصف طبق كص دجاج مع الخبز والصلصات" },
+                    { id: "k7", name: "كيلو لحم", price: 35000, desc: "كيلو كص لحم صافي للعائلة والجمعات" },
+                    { id: "k8", name: "كيلو دجاج", price: 30000, desc: "كيلو كص دجاج متبل للعائلة والجمعات" },
+                    { id: "k9", name: "نص كيلو لحم", price: 17500, desc: "نصف كيلو كص لحم طازج" },
+                    { id: "k10", name: "نص كيلو دجاج", price: 15000, desc: "نصف كيلو كص دجاج طازج" }
+                ]
+            },
+            {
+                id: "fries_appetizers",
+                name: "الفنكر والمقبلات 🍟",
+                icon: "🍟",
+                items: [
+                    { id: "f1", name: "فنكر صغير", price: 1000, desc: "بطاطا مقلية مقرمشة حجم صغير" },
+                    { id: "f2", name: "فنكر كبير", price: 2000, desc: "بطاطا مقلية مقرمشة حجم كبير" },
+                    { id: "f3", name: "فنكر كبير بصلصة", price: 3000, desc: "بطاطا مقرمشة مغطاة بصلصة الجبن والتوابل" },
+                    { id: "a1", name: "مقبلات صغير", price: 1000, desc: "تشكيلة مقبلات طازجة حجم صغير" },
+                    { id: "a2", name: "مقبلات وسط", price: 2000, desc: "تشكيلة مقبلات متنوعة حجم وسط" },
+                    { id: "a3", name: "مقبلات كبير", price: 3000, desc: "طبق مقبلات كبير مشكل" }
+                ]
+            },
+            {
+                id: "drinks",
+                name: "المشروبات 🥤",
+                icon: "🥤",
+                items: [
+                    { id: "d1", name: "بيبسي", price: 500, desc: "علبة بيبسي باردة" },
+                    { id: "d2", name: "بطل بيبسي", price: 750, desc: "قنينة بيبسي حجم أكبر" },
+                    { id: "d3", name: "شاني", price: 500, desc: "مشروب شاني بارد" },
+                    { id: "d4", name: "ديو", price: 500, desc: "ماونتن ديو بارد" },
+                    { id: "d5", name: "سفن", price: 500, desc: "سفن أب بارد" },
+                    { id: "d6", name: "ميرنده", price: 500, desc: "ميرندا برتقال باردة" }
+                ]
+            }
+        ];
+
+        // حالة السلة (كائن يحفظ معرف الوجبة والكمية)
+        let cart = {};
+        let currentOrderCode = "";
+        
+        // متغيرات الخريطة والإحداثيات (الافتراضي: العراق / المثنى - الرميثة)
+        let map = null;
+        let marker = null;
+        let selectedCoords = null; // { lat, lng }
+        const DEFAULT_LAT = 31.5284;
+        const DEFAULT_LNG = 45.2038;
+
+        // تهيئة التطبيق عند التحميل
+        window.onload = function() {
+            renderCategories();
+            renderMenu(menuData);
+            generateOrderCode();
+        };
+
+        // توليد كود طلب عشوائي مميز
+        function generateOrderCode() {
+            const randomNum = Math.floor(1000 + Math.random() * 9000);
+            currentOrderCode = `FB-${randomNum}`;
+            document.getElementById('preview-order-code').textContent = currentOrderCode;
+        }
+
+        // تنسيق الأرقام (إضافة فواصل الآلاف)
+        function formatPrice(price) {
+            return price.toLocaleString('en-US') + ' د.ع';
+        }
+
+        // عرض أزرار الأقسام العلوية
+        function renderCategories() {
+            const container = document.getElementById('category-tabs');
+            let html = `<button onclick="scrollToCategory('all')" class="cat-btn active shrink-0 bg-brand-gold text-black font-bold text-xs sm:text-sm px-4 py-2 rounded-xl transition">الكل</button>`;
+            
+            menuData.forEach(cat => {
+                html += `<button onclick="scrollToCategory('${cat.id}')" class="cat-btn shrink-0 bg-brand-dark hover:bg-gray-800 text-gray-200 border border-gray-700 font-bold text-xs sm:text-sm px-4 py-2 rounded-xl transition">${cat.name}</button>`;
+            });
+            container.innerHTML = html;
+        }
+
+        // التمرير السلس إلى القسم المختار
+        function scrollToCategory(catId) {
+            if (catId === 'all') {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+                return;
+            }
+            const el = document.getElementById(`cat-${catId}`);
+            if (el) {
+                const headerOffset = 135;
+                const elementPosition = el.getBoundingClientRect().top;
+                const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
+                window.scrollTo({ top: offsetPosition, behavior: 'smooth' });
+            }
+        }
+
+        // عرض المنيو بالكامل
+        function renderMenu(dataToRender) {
+            const container = document.getElementById('menu-container');
+            if (dataToRender.length === 0) {
+                container.innerHTML = `<div class="text-center py-12 text-gray-400">لا توجد وجبات مطابقة لبحثك 😔</div>`;
+                return;
+            }
+
+            let html = '';
+            dataToRender.forEach(cat => {
+                html += `
+                <section id="cat-${cat.id}" class="scroll-mt-36">
+                    <div class="flex items-center gap-3 mb-4 border-b border-gray-800 pb-2">
+                        <span class="text-2xl">${cat.icon}</span>
+                        <h3 class="text-xl font-black text-brand-gold">${cat.name.replace(cat.icon, '').trim()}</h3>
+                        <span class="text-xs bg-gray-800 text-gray-400 px-2.5 py-0.5 rounded-full">${cat.items.length} أصناف</span>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                `;
+
+                cat.items.forEach(item => {
+                    const qty = cart[item.id] || 0;
+                    html += `
+                    <div class="item-card bg-brand-card border ${qty > 0 ? 'border-brand-gold' : 'border-gray-800'} rounded-2xl p-4 flex flex-col justify-between shadow-md">
+                        <div>
+                            <div class="flex justify-between items-start gap-2">
+                                <h4 class="font-extrabold text-base text-white">${item.name}</h4>
+                                <span class="bg-brand-gold/15 text-brand-gold font-black text-sm px-2.5 py-1 rounded-lg shrink-0">${formatPrice(item.price)}</span>
+                            </div>
+                            <p class="text-xs text-gray-400 mt-1.5 leading-relaxed">${item.desc}</p>
+                        </div>
+                        
+                        <div class="mt-4 pt-3 border-t border-gray-800/80 flex items-center justify-between">
+                            <span class="text-xs text-gray-400">العدد المطلوب:</span>
+                            <div class="flex items-center gap-3 bg-brand-dark px-2 py-1 rounded-xl border border-gray-700" id="ctrl-${item.id}">
+                                ${renderItemControls(item.id, qty)}
+                            </div>
+                        </div>
+                    </div>
+                    `;
+                });
+
+                html += `</div></section>`;
+            });
+
+            container.innerHTML = html;
+        }
+
+        // توليد أزرار الزيادة والنقصان لكل وجبة
+        function renderItemControls(itemId, qty) {
+            if (qty === 0) {
+                return `
+                    <button onclick="updateQuantity('${itemId}', 1)" class="text-brand-gold hover:text-white font-bold text-xs px-3 py-1.5 flex items-center gap-1.5 transition">
+                        <i class="fa-solid fa-plus"></i>
+                        <span>إضافة للطلب</span>
+                    </button>
+                `;
+            } else {
+                return `
+                    <button onclick="updateQuantity('${itemId}', -1)" class="w-7 h-7 rounded-lg bg-gray-800 hover:bg-brand-red text-white flex items-center justify-center transition">
+                        <i class="fa-solid fa-minus text-xs"></i>
+                    </button>
+                    <span class="font-black text-sm text-white w-5 text-center">${qty}</span>
+                    <button onclick="updateQuantity('${itemId}', 1)" class="w-7 h-7 rounded-lg bg-brand-gold hover:bg-brand-goldHover text-black flex items-center justify-center transition">
+                        <i class="fa-solid fa-plus text-xs"></i>
+                    </button>
+                `;
+            }
+        }
+
+        // تحديث كمية الوجبة في السلة
+        function updateQuantity(itemId, change) {
+            const currentQty = cart[itemId] || 0;
+            const newQty = currentQty + change;
+
+            if (newQty <= 0) {
+                delete cart[itemId];
+            } else {
+                cart[itemId] = newQty;
+            }
+
+            // تحديث أزرار البطاقة في الصفحة الرئيسية
+            const ctrlContainer = document.getElementById(`ctrl-${itemId}`);
+            if (ctrlContainer) {
+                ctrlContainer.innerHTML = renderItemControls(itemId, newQty > 0 ? newQty : 0);
+                const card = ctrlContainer.closest('.item-card');
+                if (card) {
+                    if (newQty > 0) {
+                        card.classList.remove('border-gray-800');
+                        card.classList.add('border-brand-gold');
+                    } else {
+                        card.classList.remove('border-brand-gold');
+                        card.classList.add('border-gray-800');
+                    }
+                }
+            }
+
+            updateCartSummary();
+            
+            // إذا كانت نافذة السلة مفتوحة، قم بتحديث القائمة داخلها
+            if (!document.getElementById('cart-modal').classList.contains('hidden')) {
+                renderCartModalItems();
+            }
+        }
+
+        // البحث وتصفية المنيو
+        function filterMenu() {
+            const query = document.getElementById('search-input').value.trim().toLowerCase();
+            if (!query) {
+                renderMenu(menuData);
+                return;
+            }
+
+            const filtered = menuData.map(cat => {
+                const matchingItems = cat.items.filter(item => 
+                    item.name.toLowerCase().includes(query) || 
+                    item.desc.toLowerCase().includes(query)
+                );
+                return { ...cat, items: matchingItems };
+            }).filter(cat => cat.items.length > 0);
+
+            renderMenu(filtered);
+        }
+
+        // البحث عن بيانات وجبة من خلال المعرف
+        function getItemById(id) {
+            for (const cat of menuData) {
+                const found = cat.items.find(i => i.id === id);
+                if (found) return found;
+            }
+            return null;
+        }
+
+        // تحديث العدادات والمجموع الكلي
+        function updateCartSummary() {
+            let totalCount = 0;
+            let totalPrice = 0;
+
+            for (const [id, qty] of Object.entries(cart)) {
+                const item = getItemById(id);
+                if (item) {
+                    totalCount += qty;
+                    totalPrice += item.price * qty;
+                }
+            }
+
+            document.getElementById('header-badge').textContent = totalCount;
+            document.getElementById('float-count').textContent = totalCount;
+            document.getElementById('float-total').textContent = formatPrice(totalPrice);
+            document.getElementById('modal-total-price').textContent = formatPrice(totalPrice);
+
+            const floatingBar = document.getElementById('floating-cart-bar');
+            if (totalCount > 0) {
+                floatingBar.classList.remove('translate-y-full');
+            } else {
+                floatingBar.classList.add('translate-y-full');
+            }
+        }
+
+        // تفريغ السلة
+        function clearCart() {
+            cart = {};
+            updateCartSummary();
+            filterMenu(); // لإعادة رسم البطاقات
+            closeCartModal();
+            showToast("تم تفريغ سلة الطلبات");
+        }
+
+        // فتح نافذة إتمام الطلب
+        function openCartModal() {
+            const totalItems = Object.keys(cart).length;
+            if (totalItems === 0) {
+                showToast("يرجى اختيار وجبة واحدة على الأقل أولاً!");
+                return;
+            }
+
+            generateOrderCode();
+            renderCartModalItems();
+            document.getElementById('cart-modal').classList.remove('hidden');
+            
+            // تهيئة الخريطة بعد ظهور النافذة لضمان رسمها بالأبعاد الصحيحة
+            setTimeout(() => {
+                initMap();
+            }, 200);
+        }
+
+        // إغلاق نافذة إتمام الطلب
+        function closeCartModal() {
+            document.getElementById('cart-modal').classList.add('hidden');
+        }
+
+        // عرض العناصر المختارة داخل نافذة السلة
+        function renderCartModalItems() {
+            const container = document.getElementById('cart-items-list');
+            const entries = Object.entries(cart);
+
+            if (entries.length === 0) {
+                closeCartModal();
+                return;
+            }
+
+            let html = '';
+            entries.forEach(([id, qty]) => {
+                const item = getItemById(id);
+                if (!item) return;
+                const subtotal = item.price * qty;
+
+                html += `
+                <div class="flex items-center justify-between gap-2 bg-brand-card p-2.5 rounded-xl border border-gray-800">
+                    <div class="flex-1">
+                        <h5 class="font-bold text-sm text-white">${item.name}</h5>
+                        <span class="text-xs text-brand-gold font-semibold">${formatPrice(item.price)} × ${qty} = ${formatPrice(subtotal)}</span>
+                    </div>
+                    <div class="flex items-center gap-2 bg-brand-dark px-2 py-1 rounded-lg border border-gray-700">
+                        <button onclick="updateQuantity('${item.id}', -1)" class="w-6 h-6 rounded bg-gray-800 hover:bg-brand-red text-white flex items-center justify-center text-xs">
+                            <i class="fa-solid fa-minus"></i>
+                        </button>
+                        <span class="font-bold text-xs w-4 text-center">${qty}</span>
+                        <button onclick="updateQuantity('${item.id}', 1)" class="w-6 h-6 rounded bg-brand-gold text-black flex items-center justify-center text-xs">
+                            <i class="fa-solid fa-plus"></i>
+                        </button>
+                    </div>
+                </div>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+
+        // تهيئة خريطة Leaflet التفاعلية
+        function initMap() {
+            if (!map) {
+                const initialLat = selectedCoords ? selectedCoords.lat : DEFAULT_LAT;
+                const initialLng = selectedCoords ? selectedCoords.lng : DEFAULT_LNG;
+
+                map = L.map('map').setView([initialLat, initialLng], 15);
+
+                // استخدام خرائط OpenStreetMap الواضحة
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '&copy; OpenStreetMap'
+                }).addTo(map);
+
+                // إنشاء دبوس قابل للسحب
+                marker = L.marker([initialLat, initialLng], { draggable: true }).addTo(map);
+
+                // تحديث الإحداثيات عند سحب الدبوس
+                marker.on('dragend', function(e) {
+                    const pos = marker.getLatLng();
+                    setSelectedLocation(pos.lat, pos.lng, "تم تحديد الموقع يدوياً من الخريطة");
+                });
+
+                // تحديث الإحداثيات عند النقر على أي مكان في الخريطة
+                map.on('click', function(e) {
+                    marker.setLatLng(e.latlng);
+                    setSelectedLocation(e.latlng.lat, e.latlng.lng, "تم تحديد الموقع بالنقر على الخريطة");
+                });
+
+                // محاولة جلب موقع GPS تلقائياً عند فتح الخريطة لأول مرة
+                getUserGPSLocation(true);
+            } else {
+                map.invalidateSize();
+            }
+        }
+
+        // تحديث بيانات الإحداثيات في الواجهة
+        function setSelectedLocation(lat, lng, statusMsg) {
+            selectedCoords = {
+                lat: parseFloat(lat.toFixed(6)),
+                lng: parseFloat(lng.toFixed(6))
+            };
+            document.getElementById('coords-display').textContent = `${selectedCoords.lat}, ${selectedCoords.lng}`;
+            document.getElementById('gps-status').textContent = statusMsg;
+        }
+
+        // جلب الموقع الدقيق عبر GPS المتصفح
+        function getUserGPSLocation(silent = false) {
+            const btn = document.getElementById('gps-btn');
+            const statusEl = document.getElementById('gps-status');
+
+            if (!navigator.geolocation) {
+                if (!silent) showToast("متصفحك لا يدعم تحديد الموقع التلقائي، يرجى التحديد من الخريطة.");
+                return;
+            }
+
+            btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> <span>جاري تحديد موقعك...</span>`;
+            
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const lat = position.coords.latitude;
+                    const lng = position.coords.longitude;
+
+                    if (map && marker) {
+                        map.setView([lat, lng], 17);
+                        marker.setLatLng([lat, lng]);
+                    }
+                    setSelectedLocation(lat, lng, "✓ تم التقاط إحداثياتك بدقة");
+                    btn.innerHTML = `<i class="fa-solid fa-location-crosshairs"></i> <span>تحديث موقعي الحالي</span>`;
+                },
+                (error) => {
+                    btn.innerHTML = `<i class="fa-solid fa-location-crosshairs"></i> <span>تحديد موقعي الحالي تلقائياً</span>`;
+                    if (!silent) {
+                        showToast("تعذر الوصول للـ GPS. يرجى تفعيل الموقع أو سحب الدبوس على الخريطة.");
+                    }
+                    statusEl.textContent = "يرجى تحريك الدبوس على الخريطة لموقعك";
+                },
+                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+            );
+        }
+
+        // إرسال الطلب النهائي عبر الواتساب
+        function submitOrderToWhatsApp() {
+            const name = document.getElementById('customer-name').value.trim() || "زبون كريم";
+            const phone = document.getElementById('customer-phone').value.trim();
+            const address = document.getElementById('customer-address').value.trim();
+
+            // التحقق من الحقول الإجبارية
+            if (!phone || phone.length < 10) {
+                showToast("يرجى إدخال رقم هاتف صحيح للتواصل!");
+                document.getElementById('customer-phone').focus();
+                return;
+            }
+
+            if (!address) {
+                showToast("يرجى كتابة تفاصيل العنوان وأقرب نقطة دالة!");
+                document.getElementById('customer-address').focus();
+                return;
+            }
+
+            // تجهيز قائمة الوجبات والمجموع
+            let itemsText = "";
+            let totalPrice = 0;
+            let index = 1;
+
+            for (const [id, qty] of Object.entries(cart)) {
+                const item = getItemById(id);
+                if (item) {
+                    const sub = item.price * qty;
+                    totalPrice += sub;
+                    itemsText += `${index}. *${item.name}* × (${qty}) = ${formatPrice(sub)}\n`;
+                    index++;
+                }
+            }
+
+            // تجهيز رابط خرائط جوجل للإحداثيات الدقيقة
+            let locationSection = "";
+            if (selectedCoords) {
+                const googleMapsLink = `https://www.google.com/maps?q=${selectedCoords.lat},${selectedCoords.lng}`;
+                locationSection = `📍 *الإحداثيات الدقيقة:*\n${selectedCoords.lat}, ${selectedCoords.lng}\n🗺️ *رابط الموقع على الخريطة:*\n${googleMapsLink}`;
+            } else {
+                locationSection = `📍 *الإحداثيات:* لم يتم تحديد GPS (الاعتماد على العنوان المكتوب)`;
+            }
+
+            // صياغة رسالة الواتساب الاحترافية
+            const message = 
+`🍔 *طلب جديد - مطعم فود بركر* 🍔
+━━━━━━━━━━━━━━━━━━
+🔖 *كود الطلب:* #${currentOrderCode}
+👤 *اسم الزبون:* ${name}
+📞 *رقم الهاتف:* ${phone}
+🏠 *العنوان:* ${address}
+
+${locationSection}
+━━━━━━━━━━━━━━━━━━
+📋 *تفاصيل الوجبات المطلوبة:*
+${itemsText}━━━━━━━━━━━━━━━━━━
+💰 *المجموع الكلي:* *${formatPrice(totalPrice)}*
+━━━━━━━━━━━━━━━━━━
+يرجى تأكيد استلام الطلب، شكراً لكم! 💜`;
+
+            // تشفير الرسالة وفتح رابط الواتساب
+            const encodedMessage = encodeURIComponent(message);
+            const whatsappUrl = `https://wa.me/${RESTAURANT_WHATSAPP}?text=${encodedMessage}`;
+
+            window.open(whatsappUrl, '_blank');
+        }
+
+        // دالة إظهار الإشعارات والتنبيهات البديلة عن alert
+        function showToast(msg) {
+            const toast = document.getElementById('toast-box');
+            document.getElementById('toast-message').textContent = msg;
+            toast.classList.remove('opacity-0');
+            setTimeout(() => {
+                toast.classList.add('opacity-0');
+            }, 3500);
+        }
+    </script>
+</body>
+</html>
